@@ -29,23 +29,109 @@
             pkgs-emscripten = import nixpkgs-emscripten { inherit system; };
           });
 
-    in {
+    in rec {
+
+      packages = forAllSystems ({ pkgs, pkgs-emscripten }: {
+        flang-webr = pkgs.stdenv.mkDerivation {
+          name = "flang-webr";
+          src = ./.;
+
+          nativeBuildInputs = with pkgs; [
+            git
+            cacert
+
+            cmake
+            # gperf
+            # lzma
+            # pcre2
+            # quilt
+            # wget
+
+            zlib
+            libxml2
+            python3
+
+            pkgs-emscripten.emscripten
+          ];
+
+          configurePhase = "./configure";
+
+          # These ssl certificate stuff seems to be necessary for git clone to
+          # work from https. From
+          # https://github.com/NixOS/nixpkgs/issues/210223#issuecomment-1383979488
+          buildPhase = ''
+            export SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt
+            export SYSTEM_CERTIFICATE_PATH="$SSL_CERT_FILE"
+            export GIT_SSL_CAINFO="$SSL_CERT_FILE"
+            cd tools/flang
+            make
+          '';
+
+          installPhase = ''
+            mkdir -p $out/host/bin $out/wasm/lib
+            cp host/bin/* $out/host/bin/
+            cp wasm/lib/* $out/wasm/lib/
+          '';
+        };
+
+        webr = let
+          # binName = "zero-to-nix-cpp";
+          # cppDependencies = with pkgs; [ bash ];
+        in pkgs.stdenv.mkDerivation {
+          name = "webr";
+          src = ./.;
+
+          nativeBuildInputs = with pkgs; [
+            git
+            cacert
+
+            cmake
+            gcc
+            gperf
+            # lzma
+            # pcre2
+            # quilt
+            # wget
+
+            # zlib
+            # libxml2
+            # python3
+          ];
+
+          configurePhase = "./configure";
+
+          # These ssl certificate stuff seems to be necessary for git clone to
+          # work from https. From
+          # https://github.com/NixOS/nixpkgs/issues/210223#issuecomment-1383979488
+          buildPhase = ''
+            export SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt
+            export SYSTEM_CERTIFICATE_PATH="$SSL_CERT_FILE"
+            export GIT_SSL_CAINFO="$SSL_CERT_FILE"
+            cd tools/dragonegg
+            make
+          '';
+          dontInstall = true;
+        };
+      });
+
       # Development environment output
       devShells = forAllSystems ({ pkgs, pkgs-emscripten }: {
         default = pkgs.mkShell {
+          inputsFrom = [ packages.aarch64-darwin.flang-webr ];
           # The Nix packages provided in the environment
           packages = with pkgs;
             [
-              cmake
-              gperf
-              lzma
-              pcre2
-              nodejs_18
-              quilt
-              wget
 
-              libxml2
-              git
+              # cmake
+              # gperf
+              # lzma
+              # pcre2
+              nodejs_18
+              # quilt
+              # wget
+
+              # libxml2
+              # git
               python3
 
               # Inputs for building R borrowed from:
